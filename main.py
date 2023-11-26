@@ -52,8 +52,8 @@ def available_zones():
     response = ec2.describe_regions()
     # print('Regions:', response['Regions'])
     for each_response in response['Regions']:
-        s1 = each_response['RegionName']
-        s2 = each_response['Endpoint']
+        s1 = each_response.get('RegionName')
+        s2 = each_response.get('Endpoint')
         print(f'[region]{s1:>15}, [Endpoint] {s2}')
 
 
@@ -62,9 +62,9 @@ def available_regions():
     response = ec2.describe_availability_zones()
     # print('Availability Zones:', response['AvailabilityZones'])
     for each_response in response['AvailabilityZones']:
-        s1 = each_response['ZoneId']
-        s2 = each_response['RegionName']
-        s3 = each_response['ZoneName']
+        s1 = each_response.get('ZoneId')
+        s2 = each_response.get('RegionName')
+        s3 = each_response.get('ZoneName')
         print(f'[id] {s1:10}, [region] {s2:10}, [zone] {s3:10}')
 
 

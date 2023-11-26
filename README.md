@@ -27,8 +27,8 @@ This project used to automate `AWS` tasks and is based on `Boto3`.
 
 1. **quit**
 
-# quikly start
-
+# quickly start
+### **notice:** The python version is at least `3.6`
 ```git
-gh repo clone uda97/Boto3Demo
+https://github.com/uda97/Boto3Demo.git
 ```
