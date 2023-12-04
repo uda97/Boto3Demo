@@ -1,5 +1,9 @@
 import boto3
 from botocore.exceptions import ClientError
+import configuration
+import paramiko
+
+import test
 
 ec2 = boto3.client('ec2')
 
@@ -29,6 +33,21 @@ def switch(select_code):
     elif select_code == 99:
         print("Exiting...")
         exit()
+    elif select_code == 11:
+        print("condor_status...")
+        condor_status()
+    elif select_code == 12:
+        print("cli_mode...")
+        cli_mode()
+    elif select_code == 13:
+        print("list_security_groups...")
+        list_security_groups()
+    elif select_code == 14:
+        print("authorize_security_groups_ingress...")
+        authorize_security_ingress()
+    elif select_code == 15:
+        print("revoke security group ingress ...")
+        revoke_security_ingress()
     else:
         print("Invalid Input, Exiting...")
         exit()
@@ -45,12 +64,16 @@ def list_instances():
             instance_type = instance.get('InstanceType')
             monitoring_state = instance['Monitoring']['State']
             instance_state = instance['State']['Name']
+            group_name = instance['SecurityGroups'][0]['GroupName']
+            group_id = instance['SecurityGroups'][0]['GroupId']
 
             print(f'[id] {instance_id}, '
                   f'[AMI] {image_id}, '
                   f'[type] {instance_type}, '
                   f'[monitoring state] {monitoring_state}, '
-                  f'[state] {instance_state}')
+                  f'[state] {instance_state}, '
+                  f'[security group_name] {group_name}, '
+                  f'[security group_id] {group_id}')
 
 
 def available_zones():
@@ -84,7 +107,6 @@ def start_instance(instance_id):
 
 
 def available_regions():
-
     response = ec2.describe_availability_zones()
 
     for each_response in response['AvailabilityZones']:
@@ -117,13 +139,13 @@ def stop_instance(instance_id):
 
 
 def create_instance(input_ami_id):
-
     response = ec2.run_instances(
         ImageId=input_ami_id,
         InstanceType='t2.micro',
         MinCount=1,
         MaxCount=1,
-        KeyName="cloud_test",
+        KeyName="cloud-test",
+        SecurityGroupIds=['sg-08e97ebd07e63c82f'],
     )
 
     instance_id = response['Instances'][0]['InstanceId']
@@ -150,7 +172,7 @@ def reboot_instance(instance_id):
 
 def list_images():
     response = ec2.describe_images(
-        Owners=['self',],
+        Owners=['self', ],
     )
 
     for image in response['Images']:
@@ -158,6 +180,133 @@ def list_images():
             f"[ImageID] {image['ImageId']}, "
             f"[Name] {image.get('Name', 'N/A')}, "
             f"[OwnerID] {image['OwnerId']}")
+
+
+def connect_to_ec2():
+    ssh_client = paramiko.SSHClient()
+    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    try:
+        ssh_client.connect(hostname=configuration.HOSTNAME, username=configuration.USER_NAME,
+                           key_filename=configuration.KEY_FILE)
+        print("connect success")
+        return ssh_client
+    except Exception as e:
+        print(f"connect fail: {e}")
+        return None
+
+
+def condor_status():
+    client = connect_to_ec2()
+
+    if client is not None:
+        try:
+            stdin, stdout, stderr = client.exec_command("condor_status")
+            print("STDOUT:", stdout.read().decode())
+            print("STDERR:", stderr.read().decode())
+        finally:
+            client.close()
+    else:
+        print("cannot ssh to ec2 instance")
+
+
+def cli_mode():
+    client = connect_to_ec2()
+
+    if client is not None:
+        try:
+            while True:
+                input_command = input("[ec2-user@ip-172-31-32-88.ap-northeast-2.compute.internal] ")
+                if input_command != "exit":
+                    stdin, stdout, stderr = client.exec_command(input_command)
+                    stdout.channel.recv_exit_status()
+                    print(stdout.read().decode())
+                else:
+                    break
+        finally:
+            client.close()
+    else:
+        print("cannot ssh to ec2 instance")
+
+
+def list_security_groups():
+    response = ec2.describe_security_groups()
+    print(response)
+    for group in response['SecurityGroups']:
+        print("----------------------------------------------------------------")
+
+        print(f"[GroupId] {group.get('GroupId')}, "
+              f"[GroupName] {group.get('GroupName')}, "
+              f"[Description] {group.get('Description')}")
+
+        print("---inbound---")
+
+        for in_permission in group['IpPermissions']:
+            from_port = in_permission.get('FromPort')
+            ip_protocol = in_permission.get('IpProtocol')
+            ip_ranges = in_permission.get('IpRanges')
+            to_port = in_permission.get('ToPort')
+            print(f"[FromPort] {from_port}, [IpProtocol] {ip_protocol}, [ToPort] {to_port}, [IpRanges] {ip_ranges}, ")
+
+        print("---outbound---")
+
+        for out_permission in group['IpPermissionsEgress']:
+            from_port = out_permission.get('FromPort')
+            ip_protocol = out_permission.get('IpProtocol')
+            ip_ranges = out_permission.get('IpRanges')
+            to_port = out_permission.get('ToPort')
+
+            print(f"[FromPort] {from_port}, [IpProtocol] {ip_protocol}, [ToPort] {to_port}, [IpRanges] {ip_ranges}, ")
+
+
+def authorize_security_ingress():
+    try:
+        group_id = input("Enter the 'GroupId': ")
+        from_port = int(input("Enter the 'FromPort': "))
+        to_port = int(input("Enter the 'ToPort': "))
+        ip_protocol = input("Enter the 'IpProtocol'[tcp/udp]: ")
+        cidr_ip = input("Enter the 'CidrIp'[0.0.0.0/0]: ")
+        response = ec2.authorize_security_group_ingress(
+            GroupId=group_id,
+            IpPermissions=[
+                {
+                    'FromPort': from_port,
+                    'IpProtocol': ip_protocol,
+                    'IpRanges': [
+                        {
+                            'CidrIp': cidr_ip,
+                            'Description': 'SSH access from the CBNU',
+                        },
+                    ],
+                    'ToPort': to_port,
+                },
+            ],
+        )
+
+        print(response.get("Return"))
+    except ClientError as e:
+        print(e)
+
+
+def revoke_security_ingress():
+    group_id = input("Enter the 'GroupId': ")
+    from_port = int(input("Enter the 'FromPort': "))
+    to_port = int(input("Enter the 'ToPort': "))
+    ip_protocol = input("Enter the 'IpProtocol'[tcp/udp]: ")
+    cidr_ip = input("Enter the 'CidrIp'[0.0.0.0/0]: ")
+
+    response = ec2.revoke_security_group_ingress(
+        GroupId=group_id,
+        IpPermissions=[
+            {
+                'IpProtocol': ip_protocol,
+                'FromPort': from_port,
+                'ToPort': to_port,
+                'IpRanges': [{'CidrIp': cidr_ip}]
+            }
+        ]
+    )
+    print(response.get("Return"))
 
 
 def main():
@@ -172,6 +321,10 @@ def main():
               5. stop instance                6. create instance         
               7. reboot instance              8. list images         
                                               99. quit          
+              ------------------------------------------------------------
+              11. condor_status               12. CLI mode
+              13. list security groups        14. authorize security group ingress
+              15. revoke security group ingress 
               ------------------------------------------------------------            ''')
 
         select_code = input("Enter an integer: ")
