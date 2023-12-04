@@ -18,12 +18,14 @@ def switch(select_code):
         input_instance_id = input('Enter instance id: ')
         stop_instance(input_instance_id)
     elif select_code == 6:
-        return 6
+        input_ami_id = input('Enter ami id: ')
+        create_instance(input_ami_id)
     elif select_code == 7:
         input_instance_id = input('Enter instance id: ')
         reboot_instance(input_instance_id)
     elif select_code == 8:
-        return 8
+        print("Listing images...")
+        list_images()
     elif select_code == 99:
         print("Exiting...")
         exit()
@@ -35,7 +37,7 @@ def switch(select_code):
 def list_instances():
     response = ec2.describe_instances()
     print('Listing instances...')
-    # print(response)
+
     for reservation in response['Reservations']:
         for instance in reservation['Instances']:
             instance_id = instance.get('InstanceId')
@@ -52,9 +54,7 @@ def list_instances():
 
 
 def available_zones():
-    # Retrieves all regions/endpoints that work with EC2
     response = ec2.describe_regions()
-    # print('Regions:', response['Regions'])
     for each_response in response['Regions']:
         s1 = each_response.get('RegionName')
         s2 = each_response.get('Endpoint')
@@ -84,9 +84,9 @@ def start_instance(instance_id):
 
 
 def available_regions():
-    # Retrieves availability zones only for region of the ec2 object
+
     response = ec2.describe_availability_zones()
-    # print('Availability Zones:', response['AvailabilityZones'])
+
     for each_response in response['AvailabilityZones']:
         s1 = each_response.get('ZoneId')
         s2 = each_response.get('RegionName')
@@ -116,9 +116,19 @@ def stop_instance(instance_id):
         print(e)
 
 
-def create_instance():
-    # TODO
-    pass
+def create_instance(input_ami_id):
+
+    response = ec2.run_instances(
+        ImageId=input_ami_id,
+        InstanceType='t2.micro',
+        MinCount=1,
+        MaxCount=1,
+        KeyName="cloud_test",
+    )
+
+    instance_id = response['Instances'][0]['InstanceId']
+
+    print(f"Created EC2 instance with ID: {instance_id}")
 
 
 def reboot_instance(instance_id):
@@ -139,8 +149,15 @@ def reboot_instance(instance_id):
 
 
 def list_images():
-    # TODO
-    pass
+    response = ec2.describe_images(
+        Owners=['self',],
+    )
+
+    for image in response['Images']:
+        print(
+            f"[ImageID] {image['ImageId']}, "
+            f"[Name] {image.get('Name', 'N/A')}, "
+            f"[OwnerID] {image['OwnerId']}")
 
 
 def main():
