@@ -3,7 +3,6 @@ from botocore.exceptions import ClientError
 import configuration
 import paramiko
 
-import test
 
 ec2 = boto3.client('ec2')
 
@@ -165,7 +164,7 @@ def reboot_instance(instance_id):
 
     try:
         response = ec2.reboot_instances(InstanceIds=[instance_id], DryRun=False)
-        print(f'Successfully stopped instance{instance_id}')
+        print(f'Successfully reboot instance{instance_id}')
     except ClientError as e:
         print('Error', e)
 
@@ -231,7 +230,7 @@ def cli_mode():
 
 def list_security_groups():
     response = ec2.describe_security_groups()
-    print(response)
+
     for group in response['SecurityGroups']:
         print("----------------------------------------------------------------")
 
@@ -321,11 +320,11 @@ def main():
               5. stop instance                6. create instance         
               7. reboot instance              8. list images         
                                               99. quit          
-              ------------------------------------------------------------
+            ------------------------------------------------------------
               11. condor_status               12. CLI mode
               13. list security groups        14. authorize security group ingress
               15. revoke security group ingress 
-              ------------------------------------------------------------            ''')
+            ------------------------------------------------------------            ''')
 
         select_code = input("Enter an integer: ")
         try:
